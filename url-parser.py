@@ -370,8 +370,9 @@ class Browser:
         )
 
     def scrolldown(self, e):
-       self.scroll += SCROLL_STEP
-       self.draw()
+      max_y = self.document.height - HEIGHT
+      self.scroll = min(self.scroll + SCROLL_STEP, max_y)
+      self.draw()
 
     def scrollup(self, e):
        self.scroll -= SCROLL_STEP
