@@ -75,8 +75,9 @@ class Text:
     return repr(self.text)
 
 class Element:
-  def __init__(self, tag, parent):
+  def __init__(self, tag, attributes, parent):
     self.tag = tag
+    self.attributes = attributes
     self.children = []
     self.parent = parent
   def __repr__(self):
@@ -171,11 +172,11 @@ class HTMLParser:
       parent.children.append(node)
     elif tag in self.SELF_CLOSING_TAGS:
       parent = self.unfinished[-1]
-      node = Element(tag, parent)
+      node = Element(tag, attributes, parent)
       parent.children.append(node)
     else:
       parent = self.unfinished[-1] if self.unfinished else None
-      node = Element(tag, parent)
+      node = Element(tag, attributes, parent)
       self.unfinished.append(node)
 
   def finish(self):
@@ -423,6 +424,13 @@ class InlineLayout:
       self.previous = previous
       self.children = []
   def layout(self):
+    self.width = self.parent.width
+    self.x = self.parent.x
+    if self.previous:
+        self.y = self.previous.y + self.previous.height
+    else:
+        self.y = self.parent.y
+    self.cursor_x = self.x
     self.weight = "normal"
     self.style = "roman"
     self.size = 16
@@ -452,9 +460,9 @@ class InlineLayout:
     if tag == 'big':
       self.size -= 4
 
-  def recurse(self, tree):
-    if isinstance(tree, Text):
-      self.text(tree)
+  def recurse(self, node):
+    if isinstance(node, Text):
+      self.text(node)
     else:
       if node.tag == "br":
         self.new_line()
@@ -476,6 +484,7 @@ class InlineLayout:
       text = TextLayout(node, word, line, self.previous_word)
       line.children.append(text)
       self.previous_word = text
+      self.cursor_x += w + font.measure(" ")
 
 
   def new_line(self):
@@ -505,17 +514,22 @@ class LineLayout:
         else:
             self.y = self.parent.y
 
-        for word in self.children:
-          word.layout()
 
-        max_ascent = max([word.font.metrics("ascent")
-                  for word in self.children])
-        baseline = self.y + 1.2 * max_ascent
-        for word in self.children:
-            word.y = baseline - word.font.metrics("ascent")
-        max_descent = max([word.font.metrics("descent")
-                          for word in self.children])
-        self.height = 1.2 * (max_ascent + max_descent)
+
+        if len(self.children) > 0:
+          for word in self.children:
+            word.layout()
+
+          max_ascent = max([word.font.metrics("ascent")
+                    for word in self.children])
+          baseline = self.y + 1.2 * max_ascent
+          for word in self.children:
+              word.y = baseline - word.font.metrics("ascent")
+          max_descent = max([word.font.metrics("descent")
+                            for word in self.children])
+          self.height = 1.2 * (max_ascent + max_descent)
+        else:
+          self.height = 0
 
     def paint(self, display_list):
         for child in self.children:
@@ -626,7 +640,6 @@ class Tab:
         self.document.layout()
         self.display_list = []
         self.document.paint(self.display_list)
-        self.draw()
 
     def go_back(self):
         if len(self.history) > 1:
@@ -701,6 +714,7 @@ class Browser:
           elif 50 <= e.x < WIDTH - 10 and 40 <= e.y < 90:
                 self.focus = "address bar"
                 self.address_bar = ""
+                print('focus')
         else:
           self.tabs[self.active_tab].click(e.x, e.y - CHROME_PX)
         self.draw()
@@ -741,9 +755,6 @@ class Browser:
         self.canvas.create_text(
             11, 0, font=buttonfont, text="+", anchor="nw")
         self.canvas.create_rectangle(40, 50, WIDTH - 10, 90, width=1)
-        url = self.tabs[self.active_tab].url
-        self.canvas.create_text(
-            55, 55, anchor='nw', text=url, font=buttonfont)
 
         # back button
         self.canvas.create_rectangle(10, 50, 35, 90, width=1)
@@ -752,6 +763,7 @@ class Browser:
 
         #address bar
         if self.focus == "address bar":
+          print(self.address_bar)
           self.canvas.create_text(
               55, 55, anchor='nw', text=self.address_bar,
               font=buttonfont)
